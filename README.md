@@ -12,11 +12,11 @@ Each engineer is scored across three dimensions:
 
 | Dimension | Weight | What it captures |
 |-----------|--------|-----------------|
-| **Delivery** | 40% | PR output adjusted for complexity (size) and speed (time to merge) |
-| **Review Quality** | 40% | Review thoroughness — depth of feedback, quality of comments, turnaround speed |
-| **Problem Spotting** | 20% | Issue reporting adjusted for severity and whether the reporter fixed it themselves |
+| **Delivery** | 40% | PR output adjusted for type, complexity (size), and merge speed |
+| **Review Quality** | 40% | Review thoroughness — verdict depth, comment substance, turnaround speed |
+| **Problem Spotting** | 20% | Issues filed, weighted by severity label |
 
-All raw scores are normalized against the team's **p90** (90th percentile), so a score of 100 means top-decile performance relative to your peers — not an absolute ceiling.
+All raw scores are normalized against the team's **p90** (90th percentile), so a score of 100 means top-decile performance relative to your peers.
 
 ### Score formula
 
@@ -36,9 +36,37 @@ Each merged PR earns points based on:
 score = base_type × complexity_mult × speed_mult
 ```
 
-- **Base type**: `1.0` for feature/fix, `0.7` for docs/chore, `0.5` for reverts
-- **Complexity multiplier**: log-scale z-score of PR size (lines changed) relative to the team average. Larger PRs score higher, but with diminishing returns.
-- **Speed multiplier**: time-to-merge relative to team p90. Merging in under 24h gives a `1.2×` bonus; taking over 2× the p90 gives a `0.8×` penalty.
+**Base type** (from PR labels or title prefix):
+
+| Type | Weight |
+|------|--------|
+| hotfix / critical | 3.0× |
+| security | 2.5× |
+| regression | 2.0× |
+| bug / fix | 1.5× |
+| feature / feat | 1.3× |
+| performance / perf | 1.2× |
+| refactor / default | 1.0× |
+| test / docs | 0.5× |
+| chore / deps | 0.2× |
+
+**Complexity multiplier** — log-scale z-score of PR size (lines changed) vs. team average:
+
+| z-score | Multiplier |
+|---------|-----------|
+| > 1.5 | 1.3× |
+| > 0.5 | 1.2× |
+| > −0.5 | 1.1× |
+| ≤ −0.5 | 1.0× |
+
+**Speed multiplier** — time from PR opened to merged:
+
+| Time to merge | Multiplier |
+|---------------|-----------|
+| < 24 hours | 1.3× |
+| < 72 hours | 1.1× |
+| < 7 days | 1.0× |
+| ≥ 7 days | 0.9× |
 
 ---
 
@@ -48,9 +76,31 @@ score = base_type × complexity_mult × speed_mult
 raw_score = count × avg_depth_weight × avg_speed_mult + complexity_bonus
 ```
 
-- **Depth weight**: `1.5×` for `CHANGES_REQUESTED`, `1.0×` for `APPROVED` or `COMMENTED`; multiplied by substance signal (`1.3×` with body text, `1.1×` with inline comments, `1.0×` otherwise)
-- **Speed multiplier**: how quickly the reviewer responded after the PR was opened
-- **Complexity bonus**: extra credit for reviewing large, complex PRs
+**Depth weight** — verdict × substance, averaged across all reviews:
+
+| Verdict | Weight |
+|---------|--------|
+| CHANGES_REQUESTED | 1.5× |
+| APPROVED / COMMENTED | 1.0× |
+
+Substance multiplied on top of verdict:
+
+| Review body length | Multiplier |
+|--------------------|-----------|
+| > 200 characters | 1.3× |
+| > 50 characters | 1.1× |
+| Bare approval | 1.0× |
+
+**Speed multiplier** — time from PR opened to review submitted:
+
+| Response time | Multiplier |
+|---------------|-----------|
+| < 4 hours | 1.2× |
+| < 24 hours | 1.1× |
+| < 72 hours | 1.0× |
+| ≥ 72 hours | 0.9× |
+
+**Complexity bonus** — flat bonus for reviewing large PRs (same z-score thresholds as delivery: +0.3 / +0.2 / +0.1 / 0).
 
 ---
 
@@ -59,11 +109,16 @@ raw_score = count × avg_depth_weight × avg_speed_mult + complexity_bonus
 Each issue opened earns:
 
 ```
-score = severity_weight × fixer_signal
+score = severity_weight
 ```
 
-- **Severity**: `2.0×` for bugs, `1.5×` for enhancements, `1.0×` for questions
-- **Fixer signal**: `1.5×` if the reporter also submitted a fix PR, `1.0×` otherwise
+| Label | Weight |
+|-------|--------|
+| critical / security | 3.0× |
+| regression | 2.0× |
+| bug | 1.5× |
+| enhancement | 1.0× |
+| no label / other | 0.5× |
 
 ---
 
@@ -71,7 +126,7 @@ score = severity_weight × fixer_signal
 
 - **Next.js 16** (App Router, TypeScript)
 - **Tailwind CSS v4**
-- **GitHub REST API** — PRs, reviews, issues over a 90-day window
+- **GitHub GraphQL API** — `contributionsCollection` per engineer for PRs, reviews, and issues over a 90-day window; REST for org member list
 - **Vercel** — serverless deployment with static pre-computed data
 
 ---
@@ -80,8 +135,8 @@ score = severity_weight × fixer_signal
 
 ```bash
 # 1. Clone the repo
-git clone <repo-url>
-cd dashboard
+git clone https://github.com/Rushil10/posthog-engineering-impact.git
+cd posthog-engineering-impact
 
 # 2. Add your GitHub token
 echo "GITHUB_TOKEN=ghp_..." > .env.local
@@ -93,7 +148,7 @@ npm run dev
 
 Then open http://localhost:3000.
 
-> The first load fetches ~200 GitHub API requests and caches the result for 1 hour. Subsequent loads are instant.
+> The first load serves a pre-computed static snapshot instantly, then fires a background GraphQL recompute (~170 queries across 28 engineers) to warm the cache. Subsequent loads within the hour are instant.
 
 ---
 
@@ -105,5 +160,5 @@ app/
   api/engineers/
     route.ts            # GitHub data fetching + scoring logic
 public/
-  engineers-data.json   # Pre-computed snapshot (used on Vercel to avoid cold-start rate limits)
+  engineers-data.json   # Pre-computed snapshot (served instantly on first load)
 ```
