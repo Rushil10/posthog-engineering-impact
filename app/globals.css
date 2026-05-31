@@ -1,0 +1,76 @@
+@import "tailwindcss";
+
+:root {
+  --background: #F7F4EF;
+  --surface: #FFFFFF;
+  --surface-secondary: #F0EBE3;
+  --primary: #3D6B4F;
+  --primary-light: #6A9E78;
+  --accent: #C8965A;
+  --text-primary: #1C1C1A;
+  --text-secondary: #6B6560;
+  --border: #DDD6CC;
+  --rank-gold: #C8965A;
+  --rank-silver: #9EA8A0;
+  --rank-bronze: #B87A5A;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-surface-secondary: var(--surface-secondary);
+  --color-primary: var(--primary);
+  --color-primary-light: var(--primary-light);
+  --color-accent: var(--accent);
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-border: var(--border);
+  --font-sans: var(--font-inter);
+}
+
+body {
+  background: var(--background);
+  color: var(--text-primary);
+  font-family: var(--font-inter), Inter, system-ui, sans-serif;
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--surface-secondary) 25%,
+    #e8e0d5 50%,
+    var(--surface-secondary) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.6s ease-in-out infinite;
+}
+
+@keyframes progress-fill {
+  from { width: 0%; }
+  to { width: var(--target-width); }
+}
+
+.progress-bar-animate {
+  animation: progress-fill 0.8s ease-out forwards;
+}
+
+.tooltip-container {
+  position: relative;
+}
+
+.tooltip-content {
+  visibility: hidden;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  pointer-events: none;
+}
+
+.tooltip-container:hover .tooltip-content {
+  visibility: visible;
+  opacity: 1;
+}
